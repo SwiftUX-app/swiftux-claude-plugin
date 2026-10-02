@@ -4,12 +4,24 @@
 
 ## Install
 
+In a Claude Code session (v2.1.275 or later), one command adds the marketplace and installs the plugin:
+
+```
+/plugin install swiftux --marketplace SwiftUX-app/swiftux-claude-plugin
+```
+
+On earlier versions, run the two steps yourself:
+
 ```
 /plugin marketplace add SwiftUX-app/swiftux-claude-plugin
 /plugin install swiftux@swiftux
 ```
 
-Then ask for one piece of UI, for example *"add a paywall with a monthly/yearly toggle"* or *"onboarding screens for a fitness app"*.
+Then restart Claude Code and ask for one piece of UI, for example *"add a paywall with a monthly/yearly toggle"* or *"onboarding screens for a fitness app"*. `/mcp` should list `plugin:swiftux:swiftux` as connected.
+
+To update later: `/plugin marketplace update swiftux`.
+
+**In Claude's web, desktop or mobile app**, add the server as a connector instead: Settings → Connectors → Add custom connector, with the URL `https://api.swiftux.app/mcp`.
 
 ## What you get
 
