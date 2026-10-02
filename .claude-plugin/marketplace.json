@@ -1,0 +1,18 @@
+{
+  "name": "swiftux",
+  "owner": {
+    "name": "SwiftUX",
+    "url": "https://www.swiftux.app"
+  },
+  "metadata": {
+    "description": "SwiftUX plugins for Claude Code: production SwiftUI components and flows, matched to what you are building."
+  },
+  "plugins": [
+    {
+      "name": "swiftux",
+      "source": "./plugins/swiftux",
+      "description": "Find, preview and adapt production SwiftUI components and flows from the SwiftUX catalog.",
+      "category": "design"
+    }
+  ]
+}

@@ -1,0 +1,13 @@
+{
+  "name": "swiftux",
+  "version": "1.0.0",
+  "description": "Find, preview and adapt production SwiftUI components and flows from the SwiftUX catalog. Adds the SwiftUX MCP server and a picks pane beside the chat.",
+  "author": {
+    "name": "SwiftUX",
+    "url": "https://www.swiftux.app"
+  },
+  "homepage": "https://www.swiftux.app",
+  "repository": "https://github.com/SwiftUX-app/swiftux-claude-plugin",
+  "keywords": ["swiftui", "ios", "components", "ui", "mcp"],
+  "types": "./types/index.d.ts"
+}

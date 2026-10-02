@@ -1,0 +1,46 @@
+import { expect, test } from 'claude-code/testing'
+
+const PICKS = {
+  request_summary: 'A subscription paywall with a feature list and annual/monthly pricing.',
+  reasoning: 'Both present plans with a feature list; the sheet suits an upsell, the card a membership.',
+  items: [
+    { kind: 'component', id: 'p1', name: 'Bottom Sheet Paywall', author: 'Ana', catalog_url: 'https://www.swiftux.app/components/paywall/p1', use_when: 'Paywall that slides up as a sheet with plan options', why: null },
+    { kind: 'component', id: 'p2', name: 'Membership Card Paywall', author: null, catalog_url: 'https://www.swiftux.app/components/paywall/p2', use_when: 'Paywall built around a membership card', why: 'For a members-only tier' },
+  ],
+}
+const reply = (body: unknown) => ({ result: { content: [{ type: 'text', text: JSON.stringify(body) }], isError: false, structuredContent: body }, text: JSON.stringify(body) })
+
+for (const surface of ['terminal', 'desktop'] as const) {
+  test(`show_picks fills the pane with linked cards (${surface})`, async ($, on) => {
+    const opened: string[] = []
+    on('ui.open', (_$, e) => { opened.push(e.id); return { value: { isPlaced: true as const } } })
+    on('tool.call', { tool: 'mcp__plugin_swiftux_swiftux__show_picks' }, () => reply(PICKS))
+
+    await $.tool.call({ tool: 'mcp__plugin_swiftux_swiftux__show_picks', ...PICKS } as never)
+    expect(opened).toContain('swiftux-picks')
+
+    const ui = await $.ui.mount({ plugin: 'swiftux', surface, component: 'Pane', requestId: 'swiftux-picks', props: { title: 'SwiftUX picks', isFocused: false, bodyColumns: 60, placement: 'dock' } as never })
+    expect(await ui.find({ type: 'Text', text: 'subscription paywall with a feature list' })).toBeDefined()
+    expect(await ui.find({ type: 'Text', text: 'the sheet suits an upsell' })).toBeDefined()
+
+    const links = await ui.findAll({ type: 'Link' })
+    expect(links.map(link => link.text)).toEqual(['Bottom Sheet Paywall - Ana', 'Membership Card Paywall'])
+    expect(links.map(link => link.props.href)).toEqual(['https://www.swiftux.app/components/paywall/p1', 'https://www.swiftux.app/components/paywall/p2'])
+    // No why: the card's use_when; a why wins over it.
+    expect(await ui.find({ type: 'Text', text: 'slides up as a sheet' })).toBeDefined()
+    expect(await ui.find({ type: 'Text', text: 'For a members-only tier' })).toBeDefined()
+  })
+}
+
+test('the pane says so before any picks', async $ => {
+  const ui = await $.ui.mount({ plugin: 'swiftux', surface: 'terminal', component: 'Pane', requestId: 'swiftux-picks', props: { title: 'SwiftUX picks', isFocused: false, bodyColumns: 60, placement: 'dock' } as never })
+  expect(await ui.find({ type: 'Text', text: 'No SwiftUX picks yet' })).toBeDefined()
+})
+
+test('a failed show_picks leaves the pane alone', async ($, on) => {
+  on('ui.open', () => ({ value: { isPlaced: true as const } }))
+  on('tool.call', { tool: 'mcp__plugin_swiftux_swiftux__show_picks' }, () => ({ result: { content: [{ type: 'text', text: 'boom' }], isError: true }, text: 'boom', isError: true }))
+  await $.tool.call({ tool: 'mcp__plugin_swiftux_swiftux__show_picks', ...PICKS } as never)
+  const ui = await $.ui.mount({ plugin: 'swiftux', surface: 'terminal', component: 'Pane', requestId: 'swiftux-picks', props: { title: 'SwiftUX picks', isFocused: false, bodyColumns: 60, placement: 'dock' } as never })
+  expect(await ui.find({ type: 'Text', text: 'No SwiftUX picks yet' })).toBeDefined()
+})
