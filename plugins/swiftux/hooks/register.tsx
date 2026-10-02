@@ -1,7 +1,7 @@
 // SwiftUX picks pane (Claude Code): when the agent calls the SwiftUX MCP
 // server's show_picks, open a pane beside the chat with the request summary, the
-// reasoning, and one card per pick (name - author, a short description) whose
-// title links to the catalog page. The terminal counterpart of the MCP App
+// reasoning, and one card per pick (name - author, a short description) ending
+// in an [ Open ] link to the catalog page; [ Close ] at the top right closes it. The terminal counterpart of the MCP App
 // that ChatGPT, Codex and Claude's chat apps render for the same tool.
 import { atom, read, update } from 'claude-code'
 import type { Register } from 'claude-code'
@@ -90,17 +90,26 @@ export const register: Register = on => {
   })
 
   on('ui.render', { component: 'Pane', requestId: PANE }, async ($, e) => {
-    const { Box, Text, Link } = $.ui.resolve(e)
+    const { Box, Text, Link, Button } = $.ui.resolve(e)
     const shown = await read($, picks)
+    const close = (
+      <Box justifyContent="flex-end">
+        <Button key="close" role="dismiss" onPress={() => void $.ui.close({ id: PANE }).catch(() => {})}>
+          Close
+        </Button>
+      </Box>
+    )
     if (!shown) {
       return (
         <Box flexDirection="column">
+          {close}
           <Text dimColor>No SwiftUX picks yet. They appear here when the agent calls show_picks.</Text>
         </Box>
       )
     }
     return (
       <Box flexDirection="column" gap={1} paddingX={1}>
+        {close}
         {shown.summary && <Text bold>{shown.summary}</Text>}
         {shown.reasoning && <Text>{shown.reasoning}</Text>}
         <Box flexDirection="column" gap={1}>
@@ -108,8 +117,10 @@ export const register: Register = on => {
             const title = card.author ? `${card.name} - ${card.author}` : card.name
             return (
               <Box key={card.id} flexDirection="column" borderStyle="round" paddingX={1}>
-                {card.catalogUrl ? <Link href={card.catalogUrl} label={title} /> : <Text bold>{title}</Text>}
+                <Text bold>{title}</Text>
                 {card.blurb && <Text dimColor>{card.blurb}</Text>}
+                {/* A Link, not a Button: the surface opens it in the browser. */}
+                {card.catalogUrl && <Link href={card.catalogUrl} label="[ Open ]" />}
               </Box>
             )
           })}

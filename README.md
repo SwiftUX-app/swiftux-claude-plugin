@@ -32,9 +32,9 @@ To update later: `/plugin marketplace update swiftux`.
 - **A picks pane** beside the chat. When Claude presents options, the pane shows:
   - a short summary of your request
   - why these picks fit
-  - one card per pick: **name - author**, linking to its catalog page, over a short description of what it is for
+  - one card per pick: **name - author**, a short description of what it is for, and an **[ Open ]** link to its catalog page
 
-  `/swiftux-picks` reopens the pane. It opens on its own in a terminal at least 144 columns wide; in a narrower one, use the command.
+  **[ Close ]** at the top right closes the pane. `/swiftux-picks` reopens the pane. It opens on its own in a terminal at least 144 columns wide; in a narrower one, use the command.
 
 The pane uses Claude Code's function-hooks API, which is in early access. On a Claude Code build without it, the plugin still works: options are listed in the chat as links.
 
