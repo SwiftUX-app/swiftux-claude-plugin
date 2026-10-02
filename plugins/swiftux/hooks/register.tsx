@@ -1,10 +1,10 @@
 // SwiftUX picks pane (Claude Code): when the agent calls the SwiftUX MCP
 // server's show_picks, open a pane beside the chat with the request summary, the
 // reasoning, and one card per pick (name - author, a short description) ending
-// in an [ Open ] link to the catalog page; [ Close ] at the top right closes it. The terminal counterpart of the MCP App
+// in an [ Open ] button that opens the catalog page in the browser; [ Close ] at the top right closes it. The terminal counterpart of the MCP App
 // that ChatGPT, Codex and Claude's chat apps render for the same tool.
 import { atom, read, update } from 'claude-code'
-import type { Register } from 'claude-code'
+import type { EngineInterface, Register, UiPressArgument } from 'claude-code'
 
 import type { PickCard, Picks } from '../types'
 
@@ -45,6 +45,27 @@ function safeHref(url: string | null): string | null {
   } catch {
     return null
   }
+}
+
+// The browser opener for this machine; no shell, so the URL passes as one
+// argument. uname tells macOS from Linux; where it cannot run, it is Windows.
+async function opener($: EngineInterface): Promise<string[]> {
+  try {
+    const { stdout } = await $.process.run(['uname', '-s'], { timeoutMs: 5000 })
+    return stdout.trim() === 'Darwin' ? ['open'] : ['xdg-open']
+  } catch {
+    return ['rundll32', 'url.dll,FileProtocolHandler']
+  }
+}
+
+// Opens the URL in the default browser; if that fails, copies it and says so.
+async function openUrl($: EngineInterface, url: string, surface?: UiPressArgument['surface']): Promise<void> {
+  try {
+    const { exitCode } = await $.process.run([...(await opener($)), url], { timeoutMs: 10000 })
+    if (exitCode === 0) return
+  } catch {}
+  const copied = await $.ui.copy({ text: url, surface }).catch(() => ({ isCopied: false }))
+  $.ui.toast(copied.isCopied ? `Couldn't open a browser; link copied: ${url}` : `Couldn't open a browser: ${url}`)
 }
 
 export const register: Register = on => {
@@ -90,7 +111,7 @@ export const register: Register = on => {
   })
 
   on('ui.render', { component: 'Pane', requestId: PANE }, async ($, e) => {
-    const { Box, Text, Link, Button } = $.ui.resolve(e)
+    const { Box, Text, Button } = $.ui.resolve(e)
     const shown = await read($, picks)
     const close = (
       <Box justifyContent="flex-end">
@@ -119,8 +140,17 @@ export const register: Register = on => {
               <Box key={card.id} flexDirection="column" borderStyle="round" paddingX={1}>
                 <Text bold>{title}</Text>
                 {card.blurb && <Text dimColor>{card.blurb}</Text>}
-                {/* A Link, not a Button: the surface opens it in the browser. */}
-                {card.catalogUrl && <Link href={card.catalogUrl} label="[ Open ]" />}
+                {card.catalogUrl && (
+                  <Box>
+                    <Button
+                      key={`open:${card.id}`}
+                      variant="primary"
+                      onPress={press => void openUrl($, card.catalogUrl!, press.surface)}
+                    >
+                      Open
+                    </Button>
+                  </Box>
+                )}
               </Box>
             )
           })}

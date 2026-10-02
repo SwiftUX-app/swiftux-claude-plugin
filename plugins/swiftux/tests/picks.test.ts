@@ -25,9 +25,8 @@ for (const surface of ['terminal', 'desktop'] as const) {
 
     expect(await ui.find({ type: 'Text', text: 'Bottom Sheet Paywall - Ana' })).toBeDefined()
     expect(await ui.find({ type: 'Text', text: 'Membership Card Paywall' })).toBeDefined()
-    const links = await ui.findAll({ type: 'Link' })
-    expect(links.map(link => link.text)).toEqual(['[ Open ]', '[ Open ]'])
-    expect(links.map(link => link.props.href)).toEqual(['https://www.swiftux.app/components/paywall/p1', 'https://www.swiftux.app/components/paywall/p2'])
+    expect(await ui.find({ key: 'open:p1' })).toBeDefined()
+    expect(await ui.find({ key: 'open:p2' })).toBeDefined()
     // No why: the card's use_when; a why wins over it.
     expect(await ui.find({ type: 'Text', text: 'slides up as a sheet' })).toBeDefined()
     expect(await ui.find({ type: 'Text', text: 'For a members-only tier' })).toBeDefined()
@@ -53,4 +52,18 @@ test('Close closes the pane', async ($, on) => {
   const ui = await $.ui.mount({ plugin: 'swiftux', surface: 'terminal', component: 'Pane', requestId: 'swiftux-picks', props: { title: 'SwiftUX picks', isFocused: false, bodyColumns: 60, placement: 'dock' } as never })
   await ui.press({ key: 'close' })
   expect(closed).toEqual(['swiftux-picks'])
+})
+
+test('Open opens the catalog page in the browser', async ($, on) => {
+  const ran: string[][] = []
+  on('ui.open', () => ({ value: { isPlaced: true as const } }))
+  on('tool.call', { tool: 'mcp__plugin_swiftux_swiftux__show_picks' }, () => reply(PICKS))
+  on('process.run', (_$, e) => {
+    ran.push([...e.argv])
+    return { value: { exitCode: 0, stdout: e.argv[0] === 'uname' ? 'Darwin\n' : '', stderr: '' } }
+  })
+  await $.tool.call({ tool: 'mcp__plugin_swiftux_swiftux__show_picks', ...PICKS } as never)
+  const ui = await $.ui.mount({ plugin: 'swiftux', surface: 'terminal', component: 'Pane', requestId: 'swiftux-picks', props: { title: 'SwiftUX picks', isFocused: false, bodyColumns: 60, placement: 'dock' } as never })
+  await ui.press({ key: 'open:p2' })
+  expect(ran.at(-1)).toEqual(['open', 'https://www.swiftux.app/components/paywall/p2'])
 })
