@@ -23,8 +23,10 @@ for (const surface of ['terminal', 'desktop'] as const) {
     expect(await ui.find({ type: 'Text', text: 'subscription paywall with a feature list' })).toBeDefined()
     expect(await ui.find({ type: 'Text', text: 'the sheet suits an upsell' })).toBeDefined()
 
+    expect(await ui.find({ type: 'Text', text: 'Bottom Sheet Paywall - Ana' })).toBeDefined()
+    expect(await ui.find({ type: 'Text', text: 'Membership Card Paywall' })).toBeDefined()
     const links = await ui.findAll({ type: 'Link' })
-    expect(links.map(link => link.text)).toEqual(['Bottom Sheet Paywall - Ana', 'Membership Card Paywall'])
+    expect(links.map(link => link.text)).toEqual(['[ Open ]', '[ Open ]'])
     expect(links.map(link => link.props.href)).toEqual(['https://www.swiftux.app/components/paywall/p1', 'https://www.swiftux.app/components/paywall/p2'])
     // No why: the card's use_when; a why wins over it.
     expect(await ui.find({ type: 'Text', text: 'slides up as a sheet' })).toBeDefined()
@@ -43,4 +45,12 @@ test('a failed show_picks leaves the pane alone', async ($, on) => {
   await $.tool.call({ tool: 'mcp__plugin_swiftux_swiftux__show_picks', ...PICKS } as never)
   const ui = await $.ui.mount({ plugin: 'swiftux', surface: 'terminal', component: 'Pane', requestId: 'swiftux-picks', props: { title: 'SwiftUX picks', isFocused: false, bodyColumns: 60, placement: 'dock' } as never })
   expect(await ui.find({ type: 'Text', text: 'No SwiftUX picks yet' })).toBeDefined()
+})
+
+test('Close closes the pane', async ($, on) => {
+  const closed: string[] = []
+  on('ui.close', (_$, e) => { closed.push(e.id); return {} })
+  const ui = await $.ui.mount({ plugin: 'swiftux', surface: 'terminal', component: 'Pane', requestId: 'swiftux-picks', props: { title: 'SwiftUX picks', isFocused: false, bodyColumns: 60, placement: 'dock' } as never })
+  await ui.press({ key: 'close' })
+  expect(closed).toEqual(['swiftux-picks'])
 })
