@@ -1,10 +1,12 @@
 // SwiftUX picks pane (Claude Code): when the agent calls the SwiftUX MCP
 // server's show_picks, open a pane beside the chat with the request summary, the
 // reasoning, and one card per pick (name - author, a short description) ending
-// in an [ Open ] link to the catalog page; [ Close ] at the top right closes it. The terminal counterpart of the MCP App
+// in [ Open ], which opens the catalog page in the browser, and [ Add to chat ],
+// which attaches the pick to the person's next prompt as context for the agent;
+// [ Close ] at the top right closes it. The terminal counterpart of the MCP App
 // that ChatGPT, Codex and Claude's chat apps render for the same tool.
 import { atom, read, update } from 'claude-code'
-import type { Register } from 'claude-code'
+import type { CoreEngineInterface, Register } from 'claude-code'
 
 import type { PickCard, Picks } from '../types'
 
@@ -13,6 +15,7 @@ const TITLE = 'SwiftUX picks'
 const BLURB_MAX = 110
 
 const picks = atom({ plugin: 'swiftux', key: 'picks' } as const, null as Picks | null)
+const attached = atom({ plugin: 'swiftux', key: 'attached' } as const, [] as PickCard[])
 
 // The server answers with structuredContent and the same JSON as the first
 // text block; take whichever this host hands over.
@@ -47,6 +50,36 @@ function safeHref(url: string | null): string | null {
   }
 }
 
+// No call on $ opens a URL, so ask the OS: open on macOS, xdg-open elsewhere.
+async function openInBrowser($: CoreEngineInterface, url: string) {
+  for (const opener of ['open', 'xdg-open']) {
+    try {
+      const { exitCode } = await $.process.run([opener, url], { timeoutMs: 5000 })
+      if (exitCode === 0) return
+    } catch {
+      // Not on this system; try the next one.
+    }
+  }
+  $.ui.toast(`Open in your browser: ${url}`)
+}
+
+async function setAttached($: CoreEngineInterface, fn: (cards: PickCard[]) => PickCard[]) {
+  const next = await update($, attached, fn)
+  const n = next.length
+  $.ui.status(n ? `SwiftUX: ${n} pick${n > 1 ? 's' : ''} attached to your next prompt` : undefined)
+}
+
+const contextBlock = (cards: PickCard[]) =>
+  [
+    'The user picked these SwiftUX catalog items to use: call get_component or get_flow with the id, then its *_source tool, and adapt it.',
+    ...cards.map(card => {
+      const parts = [`- ${card.kind} "${card.name}" (id ${card.id})${card.author ? ` by ${card.author}` : ''}`]
+      if (card.catalogUrl) parts.push(card.catalogUrl)
+      if (card.why) parts.push(card.why)
+      return parts.join(' — ')
+    }),
+  ].join('\n')
+
 export const register: Register = on => {
   on('session.start', async ($, e, next) => {
     await $.command.register({ name: 'swiftux-picks', description: 'Show the latest SwiftUX picks in a pane' })
@@ -56,6 +89,16 @@ export const register: Register = on => {
   on('command.run', { command: 'swiftux-picks' }, async $ => {
     await $.ui.open({ id: PANE, title: TITLE })
     return { text: 'SwiftUX picks pane opened.' }
+  })
+
+  // Picks added to the chat ride along with the person's next prompt, unseen
+  // by them, then the list empties. A prompt a plugin submits carries none.
+  on('prompt.submit', async ($, e, next) => {
+    if (e.origin?.kind === 'plugin') return next(e)
+    const cards = await read($, attached)
+    if (!cards.length) return next(e)
+    await setAttached($, () => [])
+    return next({ ...e, context: [...(e.context ?? []), contextBlock(cards)] })
   })
 
   // Any server name: mcp__plugin_swiftux_swiftux__show_picks when this
@@ -69,11 +112,14 @@ export const register: Register = on => {
 
     const cards: PickCard[] = items.map(item => {
       const id = str(item.id) ?? ''
+      const why = str(item.why)
       return {
+        kind: item.kind === 'flow' ? 'flow' : 'component',
         id,
         name: str(item.name) ?? id,
         author: str(item.author),
-        blurb: clip(str(item.why) ?? str(item.use_when)),
+        blurb: clip(why ?? str(item.use_when)),
+        why,
         catalogUrl: safeHref(str(item.catalog_url)),
       }
     })
@@ -83,6 +129,7 @@ export const register: Register = on => {
       reasoning: str(body?.reasoning) ?? str(input.reasoning) ?? '',
       cards,
     }))
+    await setAttached($, () => [])
     // Not awaited: the tool result goes back to the agent at once. A pane that
     // cannot be placed (narrow terminal, no surface) waits or is skipped.
     $.ui.open({ id: PANE, title: TITLE }).catch(() => {})
@@ -90,8 +137,9 @@ export const register: Register = on => {
   })
 
   on('ui.render', { component: 'Pane', requestId: PANE }, async ($, e) => {
-    const { Box, Text, Link, Button } = $.ui.resolve(e)
+    const { Box, Text, Button } = $.ui.resolve(e)
     const shown = await read($, picks)
+    const added = new Set((await read($, attached)).map(card => card.id))
     const close = (
       <Box justifyContent="flex-end">
         <Button key="close" role="dismiss" onPress={() => void $.ui.close({ id: PANE }).catch(() => {})}>
@@ -119,8 +167,32 @@ export const register: Register = on => {
               <Box key={card.id} flexDirection="column" borderStyle="round" paddingX={1}>
                 <Text bold>{title}</Text>
                 {card.blurb && <Text dimColor>{card.blurb}</Text>}
-                {/* A Link, not a Button: the surface opens it in the browser. */}
-                {card.catalogUrl && <Link href={card.catalogUrl} label="[ Open ]" />}
+                <Box gap={1}>
+                  {card.catalogUrl && (
+                    <Button key={`open-${card.id}`} onPress={() => void openInBrowser($, card.catalogUrl!)}>
+                      Open
+                    </Button>
+                  )}
+                  {added.has(card.id) ? (
+                    <Button
+                      key={`add-${card.id}`}
+                      onPress={() => void setAttached($, cards => cards.filter(c => c.id !== card.id))}
+                    >
+                      Added ✓
+                    </Button>
+                  ) : (
+                    <Button
+                      key={`add-${card.id}`}
+                      variant="primary"
+                      onPress={async () => {
+                        await setAttached($, cards => [...cards.filter(c => c.id !== card.id), card])
+                        $.ui.toast(`Added ${card.name} to the chat`)
+                      }}
+                    >
+                      Add to chat
+                    </Button>
+                  )}
+                </Box>
               </Box>
             )
           })}

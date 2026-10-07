@@ -25,9 +25,8 @@ for (const surface of ['terminal', 'desktop'] as const) {
 
     expect(await ui.find({ type: 'Text', text: 'Bottom Sheet Paywall - Ana' })).toBeDefined()
     expect(await ui.find({ type: 'Text', text: 'Membership Card Paywall' })).toBeDefined()
-    const links = await ui.findAll({ type: 'Link' })
-    expect(links.map(link => link.text)).toEqual(['[ Open ]', '[ Open ]'])
-    expect(links.map(link => link.props.href)).toEqual(['https://www.swiftux.app/components/paywall/p1', 'https://www.swiftux.app/components/paywall/p2'])
+    expect(await ui.find({ type: 'Button', key: 'open-p1' })).toBeDefined()
+    expect(await ui.find({ type: 'Button', key: 'add-p2' })).toBeDefined()
     // No why: the card's use_when; a why wins over it.
     expect(await ui.find({ type: 'Text', text: 'slides up as a sheet' })).toBeDefined()
     expect(await ui.find({ type: 'Text', text: 'For a members-only tier' })).toBeDefined()
@@ -49,8 +48,41 @@ test('a failed show_picks leaves the pane alone', async ($, on) => {
 
 test('Close closes the pane', async ($, on) => {
   const closed: string[] = []
-  on('ui.close', (_$, e) => { closed.push(e.id); return {} })
+  on('ui.close', (_$, e) => { closed.push(e.id); return { value: undefined } as never })
   const ui = await $.ui.mount({ plugin: 'swiftux', surface: 'terminal', component: 'Pane', requestId: 'swiftux-picks', props: { title: 'SwiftUX picks', isFocused: false, bodyColumns: 60, placement: 'dock' } as never })
   await ui.press({ key: 'close' })
   expect(closed).toEqual(['swiftux-picks'])
 })
+
+const PANE = { plugin: 'swiftux', component: 'Pane', requestId: 'swiftux-picks', props: { title: 'SwiftUX picks', isFocused: false, bodyColumns: 60, placement: 'dock' } as never } as const
+
+for (const surface of ['terminal', 'desktop'] as const) {
+  test(`Open opens the catalog page in the browser (${surface})`, async ($, on) => {
+    on('ui.open', () => ({ value: { isPlaced: true as const } }))
+    on('tool.call', { tool: 'mcp__plugin_swiftux_swiftux__show_picks' }, () => reply(PICKS))
+    const ran: string[][] = []
+    on('process.run', (_$, e) => { ran.push([...e.argv]); return { value: { exitCode: 0, stdout: '', stderr: '' } } as never })
+    await $.tool.call({ tool: 'mcp__plugin_swiftux_swiftux__show_picks', ...PICKS } as never)
+    const ui = await $.ui.mount({ ...PANE, surface })
+    await ui.press({ key: 'open-p1' })
+    expect(ran).toEqual([['open', 'https://www.swiftux.app/components/paywall/p1']])
+  })
+
+  test(`Add to chat attaches the pick to the next prompt only (${surface})`, async ($, on) => {
+    on('ui.open', () => ({ value: { isPlaced: true as const } }))
+    on('tool.call', { tool: 'mcp__plugin_swiftux_swiftux__show_picks' }, () => reply(PICKS))
+    const contexts: Array<readonly string[] | undefined> = []
+    on('prompt.submit', (_$, e) => { contexts.push(e.context); return { text: e.text, context: e.context } })
+    await $.tool.call({ tool: 'mcp__plugin_swiftux_swiftux__show_picks', ...PICKS } as never)
+    const ui = await $.ui.mount({ ...PANE, surface })
+    await ui.press({ key: 'add-p2' })
+    expect((await ui.find({ type: 'Button', key: 'add-p2' }))?.text).toContain('Added')
+
+    await $.prompt.submit({ text: 'build it' })
+    await $.prompt.submit({ text: 'and again' })
+    // $.prompt.submit here is the test's, not a plugin's, so the hook sees it.
+    expect(contexts[0]?.join('\n')).toContain('component "Membership Card Paywall" (id p2)')
+    expect(contexts[0]?.join('\n')).toContain('For a members-only tier')
+    expect(contexts[1]?.length ?? 0).toBe(0)
+  })
+}
