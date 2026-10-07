@@ -17,42 +17,6 @@ const BLURB_MAX = 110
 const picks = atom({ plugin: 'swiftux', key: 'picks' } as const, null as Picks | null)
 const attached = atom({ plugin: 'swiftux', key: 'attached' } as const, [] as PickCard[])
 
-// Real catalog items, so /swiftux-picks-demo shows the pane without an agent turn.
-const DEMO: Picks = {
-  summary: 'A subscription paywall with a monthly/yearly toggle, plus the screens around it.',
-  reasoning:
-    'Demo picks: the Curved Sheet Paywall covers the plan toggle and free trial; the onboarding flow and settings screen show how cards for flows and other components read.',
-  cards: [
-    {
-      kind: 'component',
-      id: 'cad16434-de03-445b-b39d-093b440c268c',
-      name: 'Curved Sheet Paywall',
-      author: null,
-      blurb: 'Subscription upgrade screen with a rounded sheet over a gradient; monthly vs annual toggle and free trial.',
-      why: null,
-      catalogUrl: 'https://www.swiftux.app/components/paywall/cad16434-de03-445b-b39d-093b440c268c',
-    },
-    {
-      kind: 'flow',
-      id: '44ef9604-cf67-4202-80e4-1844ec0739e6',
-      name: 'Onboarding Story Carousel',
-      author: null,
-      blurb: 'Auto-advancing intro screens that pitch the app one claim at a time, then reveal sign-up.',
-      why: null,
-      catalogUrl: 'https://www.swiftux.app/flows/onboarding/44ef9604-cf67-4202-80e4-1844ec0739e6',
-    },
-    {
-      kind: 'component',
-      id: '5845955c-1faf-453a-b59d-b37068806ddd',
-      name: 'Grouped Settings Screen',
-      author: null,
-      blurb: 'Preferences screen with grouped rows: pickers, switches, external links and a destructive action.',
-      why: null,
-      catalogUrl: 'https://www.swiftux.app/components/list/5845955c-1faf-453a-b59d-b37068806ddd',
-    },
-  ],
-}
-
 // The server answers with structuredContent and the same JSON as the first
 // text block; take whichever this host hands over.
 function payload(ran: { result?: unknown; text?: string }): Record<string, unknown> | null {
@@ -119,20 +83,12 @@ const contextBlock = (cards: PickCard[]) =>
 export const register: Register = on => {
   on('session.start', async ($, e, next) => {
     await $.command.register({ name: 'swiftux-picks', description: 'Show the latest SwiftUX picks in a pane' })
-    await $.command.register({ name: 'swiftux-picks-demo', description: 'Open the SwiftUX picks pane with sample picks' })
     return next(e)
   })
 
   on('command.run', { command: 'swiftux-picks' }, async $ => {
     await $.ui.open({ id: PANE, title: TITLE })
     return { text: 'SwiftUX picks pane opened.' }
-  })
-
-  on('command.run', { command: 'swiftux-picks-demo' }, async $ => {
-    await update($, picks, () => DEMO)
-    await setAttached($, () => [])
-    await $.ui.open({ id: PANE, title: TITLE })
-    return { text: 'SwiftUX picks pane opened with sample picks.' }
   })
 
   // Picks added to the chat ride along with the person's next prompt, unseen

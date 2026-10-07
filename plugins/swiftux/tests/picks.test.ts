@@ -86,12 +86,3 @@ for (const surface of ['terminal', 'desktop'] as const) {
     expect(contexts[1]?.length ?? 0).toBe(0)
   })
 }
-
-test('/swiftux-picks-demo opens the pane with sample picks', async ($, on) => {
-  const opened: string[] = []
-  on('ui.open', (_$, e) => { opened.push(e.id); return { value: { isPlaced: true as const } } })
-  await $.command.run({ command: 'swiftux-picks-demo' } as never)
-  expect(opened).toContain('swiftux-picks')
-  const ui = await $.ui.mount({ ...PANE, surface: 'terminal' })
-  expect(await ui.find({ type: 'Text', text: 'Curved Sheet Paywall' })).toBeDefined()
-})
